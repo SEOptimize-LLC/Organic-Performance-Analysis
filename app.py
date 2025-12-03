@@ -145,29 +145,23 @@ def render_sidebar():
             # Combine with domain properties first (usually preferred)
             sorted_properties = domain_props + url_props
             
-            # Calculate the correct default index
-            # Keep the user's previous selection if it exists and is valid
-            default_index = 0
-            if st.session_state.selected_property:
-                try:
-                    prev_idx = sorted_properties.index(
-                        st.session_state.selected_property
-                    )
-                    default_index = prev_idx
-                except ValueError:
-                    # Previous selection no longer in list
-                    default_index = 0
+            # Initialize property selector state if not exists
+            if 'property_selector' not in st.session_state:
+                st.session_state.property_selector = sorted_properties[0]
             
-            # Use a unique key and on_change callback for proper state
+            # Validate that saved selection is still in list
+            if st.session_state.property_selector not in sorted_properties:
+                st.session_state.property_selector = sorted_properties[0]
+            
+            # Selectbox WITHOUT index - let Streamlit manage via key
             selected = st.sidebar.selectbox(
                 "Select Property:",
                 options=sorted_properties,
-                index=default_index,
                 key="property_selector",
                 help="Domain properties (sc-domain:) provide complete data"
             )
             
-            # Update session state with current selection
+            # Sync to selected_property for rest of app to use
             st.session_state.selected_property = selected
             
             # Show property type indicator
