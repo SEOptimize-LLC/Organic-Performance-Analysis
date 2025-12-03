@@ -143,21 +143,26 @@ def render_sidebar():
             )
             
             # Combine with domain properties first (usually preferred)
-            sorted_properties = domain_props + url_props
+            # Sort each group for consistent ordering
+            sorted_properties = sorted(domain_props) + sorted(url_props)
             
-            # Initialize property selector state if not exists
-            if 'property_selector' not in st.session_state:
-                st.session_state.property_selector = sorted_properties[0]
+            # Cache properties in session state for consistency
+            if 'cached_properties' not in st.session_state:
+                st.session_state.cached_properties = sorted_properties
             
-            # Validate that saved selection is still in list
-            if st.session_state.property_selector not in sorted_properties:
-                st.session_state.property_selector = sorted_properties[0]
+            # Use cached list if same length (properties unchanged)
+            if len(st.session_state.cached_properties) == len(sorted_properties):
+                sorted_properties = st.session_state.cached_properties
+            else:
+                st.session_state.cached_properties = sorted_properties
             
-            # Selectbox WITHOUT index - let Streamlit manage via key
+            # Selectbox - NO manual state manipulation
+            # Let Streamlit fully manage state via key
             selected = st.sidebar.selectbox(
                 "Select Property:",
                 options=sorted_properties,
-                key="property_selector",
+                index=0,  # Default to first only on initial render
+                key="gsc_property",  # Different key to avoid conflicts
                 help="Domain properties (sc-domain:) provide complete data"
             )
             
