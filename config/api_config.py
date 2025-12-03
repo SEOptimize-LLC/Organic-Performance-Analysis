@@ -172,12 +172,15 @@ class APIConfig(BaseSettings):
         return headers
     
     def get_google_client_config(self) -> Dict[str, Any]:
-        """Get Google OAuth2 client configuration"""
+        """
+        Get Google OAuth2 client configuration.
+        Uses 'installed' type which works better with Streamlit Cloud.
+        """
         if not self.google_client_id or not self.google_client_secret:
             return {}
         
         return {
-            "web": {
+            "installed": {
                 "client_id": self.google_client_id,
                 "client_secret": self.google_client_secret.get_secret_value(),
                 "redirect_uris": [self.google_redirect_uri],

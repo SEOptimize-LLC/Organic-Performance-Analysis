@@ -83,13 +83,34 @@ def render_sidebar():
     auth_service = AuthService()
     
     if not st.session_state.authenticated:
+        # Check for OAuth callback in query params FIRST
+        try:
+            qp = dict(st.query_params) if hasattr(st, 'query_params') else {}
+        except Exception:
+            qp = {}
+        
+        if 'code' in qp:
+            with st.sidebar:
+                with st.spinner("Authenticating..."):
+                    success, error = auth_service.handle_callback(qp)
+                    if success:
+                        st.session_state.authenticated = True
+                        # Clear query params
+                        try:
+                            st.query_params.clear()
+                        except Exception:
+                            pass
+                        st.rerun()
+                    else:
+                        st.error(f"Auth failed: {error}")
+        
         # Show redirect URI for debugging
         redirect_uri = api_config.google_redirect_uri
         with st.sidebar.expander("🔧 Debug: OAuth Config"):
             st.code(f"Redirect URI:\n{redirect_uri}", language=None)
             st.caption(
-                "This MUST exactly match what's in Google Cloud Console "
-                "→ Credentials → OAuth 2.0 Client → Authorized redirect URIs"
+                "Using 'installed' app type. "
+                "This must match Google Cloud Console redirect URIs."
             )
         
         # Email hint for account selection
@@ -99,27 +120,20 @@ def render_sidebar():
             help="Pre-select this Google account during login"
         )
         
-        if st.sidebar.button("🔐 Connect to GSC", use_container_width=True):
-            try:
-                auth_url = auth_service.get_auth_url(
-                    login_hint=login_email if login_email else None
-                )
-                st.sidebar.markdown(f"[Click here to authorize]({auth_url})")
-            except ValueError as e:
-                st.sidebar.error(f"Config error: {str(e)}")
-        
-        # Check for OAuth callback in query params
+        # Generate auth URL and show link button for direct navigation
         try:
-            qp = dict(st.query_params) if hasattr(st, 'query_params') else {}
-        except Exception:
-            qp = {}
-        if 'code' in qp and 'state' in qp:
-            success, error = auth_service.handle_callback(qp)
-            if success:
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.sidebar.error(f"Auth failed: {error}")
+            auth_url = auth_service.get_auth_url(
+                login_hint=login_email if login_email else None
+            )
+            # Use link_button for direct single-click authentication
+            st.sidebar.link_button(
+                "🔐 Sign in with Google",
+                auth_url,
+                type="primary",
+                use_container_width=True
+            )
+        except ValueError as e:
+            st.sidebar.error(f"Config error: {str(e)}")
     else:
         st.sidebar.success("✅ Connected to GSC")
         

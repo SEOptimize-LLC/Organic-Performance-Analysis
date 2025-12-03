@@ -100,17 +100,26 @@ class AuthService:
             # Generate new state token
             state = self.generate_state_token()
             
-            # Get redirect URI and log it for debugging
-            redirect_uri = api_config.google_redirect_uri
+            # Get client config and redirect URI
+            client_config = api_config.get_google_client_config()
+            
+            # Extract redirect_uri from config (installed type)
+            config_key = "installed" if "installed" in client_config else "web"
+            redirect_uri = client_config[config_key]["redirect_uris"][0]
+            
             logger.info(f"Using redirect_uri: '{redirect_uri}'")
+            logger.info(f"Using config type: '{config_key}'")
             
             # Create OAuth flow
             flow = Flow.from_client_config(
-                api_config.get_google_client_config(),
+                client_config,
                 scopes=api_config.oauth2_scopes,
                 redirect_uri=redirect_uri,
                 state=state
             )
+            
+            # Store flow in session for later token exchange
+            st.session_state.auth_flow = flow
             
             # Build authorization URL with optional login hint
             auth_params = {
@@ -126,9 +135,7 @@ class AuthService:
             
             auth_url, _ = flow.authorization_url(**auth_params)
             
-            logger.info(
-                f"Generated auth URL with redirect: {redirect_uri}"
-            )
+            logger.info(f"Generated auth URL with redirect: {redirect_uri}")
             return auth_url
             
         except Exception as e:
@@ -179,18 +186,24 @@ class AuthService:
             # Mark code as used immediately
             st.session_state.auth_code_used.add(code)
             
-            # Create flow with the same state
-            flow = Flow.from_client_config(
-                api_config.get_google_client_config(),
-                scopes=api_config.oauth2_scopes,
-                redirect_uri=api_config.google_redirect_uri,
-                state=state
-            )
+            # Get flow from session or create new one
+            client_config = api_config.get_google_client_config()
+            config_key = "installed" if "installed" in client_config else "web"
+            redirect_uri = client_config[config_key]["redirect_uris"][0]
+            
+            # Check if we have flow in session
+            if hasattr(st.session_state, 'auth_flow') and st.session_state.auth_flow:
+                flow = st.session_state.auth_flow
+            else:
+                flow = Flow.from_client_config(
+                    client_config,
+                    scopes=api_config.oauth2_scopes,
+                    redirect_uri=redirect_uri,
+                    state=state
+                )
             
             # Build authorization response URL
-            auth_response = (
-                f"{api_config.google_redirect_uri}?code={code}&state={state}"
-            )
+            auth_response = f"{redirect_uri}?code={code}&state={state}"
             
             try:
                 # Exchange code for token
