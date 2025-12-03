@@ -12,16 +12,24 @@ class AnalysisPrompts:
     Designed to generate actionable, no-fluff insights.
     """
     
-    SYSTEM_PROMPT = """You are an expert SEO analyst specializing in organic 
-performance optimization. Your role is to analyze data from Google Search 
+    SYSTEM_PROMPT = """You are an expert SEO analyst specializing in organic
+performance optimization. Your role is to analyze data from Google Search
 Console and DataForSEO to provide actionable, high-ROI recommendations.
+
+## CRITICAL RULES:
+1. ONLY analyze the ACTUAL data provided - NEVER invent examples or sample data
+2. If data is empty or says "No data available", state that clearly and move on
+3. NEVER create fake keyword examples like "best running shoes" or placeholder URLs
+4. Use ONLY the real keywords, URLs, and metrics from the provided datasets
+5. If a section has no data, write: "No data available for this analysis."
 
 ## Core Principles:
 1. NEVER provide vanity metrics or celebratory statements
-2. ALWAYS tie insights to specific, implementable actions
+2. ALWAYS tie insights to specific, implementable actions from REAL data
 3. Prioritize recommendations by estimated impact and effort
 4. Focus on opportunities that drive traffic AND conversions
 5. Be direct and technical - avoid fluff and generic advice
+6. Use GSC impressions/clicks (actual data) NOT estimated search volume
 
 ## Analysis Framework:
 - Quick Wins: High-impact, low-effort opportunities
@@ -31,48 +39,46 @@ Console and DataForSEO to provide actionable, high-ROI recommendations.
 
 ## Output Format:
 - Use clear hierarchical structure
-- Include specific keywords, URLs, and metrics
+- Include specific keywords, URLs, and metrics FROM THE DATA
 - Provide concrete action steps (not vague suggestions)
-- Estimate impact where possible (e.g., potential click gain)
+- Estimate impact based on ACTUAL impressions and CTR potential
 - Group by priority tier (Critical, High, Medium, Low)"""
     
-    QUICK_WINS_PROMPT = """Analyze the following quick-win opportunities and 
+    QUICK_WINS_PROMPT = """Analyze the following quick-win opportunities and
 provide actionable recommendations.
 
-## Data Context:
-- These are keywords with high impressions but suboptimal CTR
-- Position range: typically 3-15 (striking distance)
-- Each represents a near-term optimization opportunity
+IMPORTANT: Only analyze the ACTUAL data below. Do NOT invent examples.
+If the data shows "No data available" or is empty, state that and skip analysis.
 
 ## Quick Wins Data:
 {quick_wins_data}
 
-## Analysis Required:
-1. Identify the top 10 highest-impact opportunities
-2. For EACH opportunity, provide:
-   - Current state (position, CTR, impressions)
-   - Specific optimization action (title change, meta description, etc.)
-   - Expected impact estimate
-   - Implementation difficulty (Low/Medium/High)
+## Instructions:
+If data is available, for each keyword in the data:
+1. Reference the ACTUAL keyword from the data
+2. Note its REAL position, CTR, and impressions values
+3. Suggest specific title/meta improvements
+4. Calculate realistic click potential based on:
+   - ACTUAL impressions (not estimated search volume)
+   - Realistic CTR improvement (e.g., from 1% to 3% is 2% gain)
+   - Extra clicks = impressions × CTR improvement
 
-3. Group recommendations by action type:
-   - Title tag optimizations
-   - Meta description improvements  
-   - Content enhancements
-   - Featured snippet targeting
-   - Internal linking additions
+Example calculation for a REAL keyword:
+- If keyword has 1,000 impressions and 1% CTR = 10 clicks
+- Improving to 3% CTR = 30 clicks = +20 additional clicks
+- Do NOT claim 200+ clicks unless impressions support it
 
-4. Provide a prioritized action plan with specific next steps
+Group by action type (title fixes, meta description, content updates).
 
-Focus on actionable specifics, not general advice."""
+If no data is available, simply state:
+"No quick win opportunities identified in the analyzed data."
+
+DO NOT create sample data or placeholder examples."""
     
-    DECAY_ANALYSIS_PROMPT = """Analyze the following decaying keywords/pages 
+    DECAY_ANALYSIS_PROMPT = """Analyze the following decaying keywords/pages
 and provide recovery recommendations.
 
-## Data Context:
-- These are keywords/pages showing performance decline
-- Comparison period: current vs previous (YoY or sequential)
-- Decay types have been pre-classified
+IMPORTANT: Only analyze ACTUAL data provided. Do NOT invent examples.
 
 ## Decaying Content Data:
 {decay_data}
@@ -80,31 +86,17 @@ and provide recovery recommendations.
 ## Decay Summary:
 {decay_summary}
 
-## Analysis Required:
-1. Classify decay patterns into root causes:
-   - Competition (competitors improved)
-   - Content staleness (needs refresh)
-   - SERP changes (new features taking clicks)
-   - Demand shift (topic interest declining)
-   - Technical issues (potential indexation problems)
+## Instructions:
+If decay data is available:
+1. Analyze ONLY the keywords/pages shown in the data above
+2. Reference their ACTUAL metrics (clicks change, position change, etc.)
+3. Diagnose likely causes based on the data patterns
+4. Provide specific recovery actions for each
 
-2. For top 10 declining items, provide:
-   - Specific diagnosis
-   - Recovery action plan
-   - Effort estimate
-   - Recovery timeline expectation
+If data shows "No data available" or is empty, state:
+"No keyword or page-level decay detected in the comparison period."
 
-3. Identify patterns across decaying content:
-   - Common themes or topics
-   - Shared technical issues
-   - Competitive landscape changes
-
-4. Prioritize recovery actions by:
-   - Traffic impact potential
-   - Strategic importance
-   - Recovery likelihood
-
-Be specific about what needs to change and why."""
+DO NOT create fictional examples or sample decay scenarios."""
     
     COMPETITOR_ANALYSIS_PROMPT = """Analyze the competitive landscape and 
 identify keyword gaps and opportunities.

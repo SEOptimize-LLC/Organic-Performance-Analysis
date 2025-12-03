@@ -13,7 +13,7 @@ from config.api_config import api_config
 from services.cache_service import cache_service
 from services.rate_limiter import rate_limiter, retry_handler
 from utils.logger import logger
-from utils.helpers import safe_float, safe_int, extract_domain
+from utils.helpers import safe_float, safe_int
 
 
 class DataForSEOClient:
@@ -61,6 +61,9 @@ class DataForSEOClient:
         """
         url = f"{self.base_url}{endpoint}"
         
+        logger.info(f"DataForSEO request: {endpoint}")
+        logger.debug(f"Payload: {data}")
+        
         try:
             if method == 'POST':
                 response = requests.post(
@@ -76,19 +79,49 @@ class DataForSEOClient:
                     timeout=120
                 )
             
+            logger.info(f"DataForSEO HTTP status: {response.status_code}")
+            
             response.raise_for_status()
             result = response.json()
             
             # Check for API errors
-            if result.get('status_code') != 20000:
-                error_msg = result.get('status_message', 'Unknown error')
-                logger.error(f"DataForSEO error: {error_msg}")
+            api_status = result.get('status_code', 0)
+            api_message = result.get('status_message', 'No message')
+            
+            logger.info(f"DataForSEO API status: {api_status} - {api_message}")
+            
+            if api_status != 20000:
+                logger.error(f"DataForSEO API error: {api_message}")
+                # Log task-level errors if available
+                tasks = result.get('tasks', [])
+                for task in tasks:
+                    task_status = task.get('status_code', 0)
+                    task_msg = task.get('status_message', '')
+                    if task_status != 20000:
+                        logger.error(f"Task error: {task_status} - {task_msg}")
                 return None
+            
+            # Log task results count
+            tasks = result.get('tasks', [])
+            for task in tasks:
+                task_result = task.get('result', [])
+                if task_result:
+                    items_count = len(task_result[0].get('items', []))
+                    logger.info(f"DataForSEO returned {items_count} items")
             
             return result
             
         except requests.exceptions.Timeout:
             logger.error(f"Request timeout for {endpoint}")
+            return None
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error {response.status_code}: {str(e)}")
+            # Try to get error details from response
+            try:
+                error_detail = response.json()
+                logger.error(f"Error details: {error_detail}")
+            except Exception:
+                pass
             return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error: {str(e)}")
@@ -344,9 +377,15 @@ class DataForSEOClient:
                 for item in items:
                     records.append({
                         'competitor_domain': item.get('domain', ''),
-                        'avg_position': safe_float(item.get('avg_position', 0)),
-                        'sum_position': safe_int(item.get('sum_position', 0)),
-                        'intersections': safe_int(item.get('intersections', 0)),
+                        'avg_position': safe_float(
+                            item.get('avg_position', 0)
+                        ),
+                        'sum_position': safe_int(
+                            item.get('sum_position', 0)
+                        ),
+                        'intersections': safe_int(
+                            item.get('intersections', 0)
+                        ),
                         'full_domain_metrics': item.get(
                             'full_domain_metrics', {}
                         ),

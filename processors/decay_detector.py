@@ -29,11 +29,11 @@ class DecayDetector:
     Classifies decay types for targeted recovery strategies.
     """
     
-    # Thresholds for decay detection
-    POSITION_DECAY_THRESHOLD = 3.0  # Positions dropped
-    IMPRESSIONS_DECAY_PCT = -0.20  # 20% drop
-    CLICKS_DECAY_PCT = -0.25  # 25% drop
-    CTR_DECAY_PCT = -0.15  # 15% drop
+    # Thresholds for decay detection - LOWERED for better sensitivity
+    POSITION_DECAY_THRESHOLD = 2.0  # Positions dropped (was 3)
+    IMPRESSIONS_DECAY_PCT = -0.10  # 10% drop (was 20%)
+    CLICKS_DECAY_PCT = -0.15  # 15% drop (was 25%)
+    CTR_DECAY_PCT = -0.10  # 10% drop (was 15%)
     
     def __init__(self, custom_thresholds: Dict = None):
         """
@@ -192,7 +192,7 @@ class DecayDetector:
         self,
         current_df: pd.DataFrame,
         previous_df: pd.DataFrame,
-        min_prev_clicks: int = 5
+        min_prev_clicks: int = 1  # Lowered from 5
     ) -> pd.DataFrame:
         """
         Detect decaying keywords.
@@ -250,7 +250,7 @@ class DecayDetector:
         self,
         current_df: pd.DataFrame,
         previous_df: pd.DataFrame,
-        min_prev_clicks: int = 10
+        min_prev_clicks: int = 3  # Lowered from 10
     ) -> pd.DataFrame:
         """
         Detect decaying pages.

@@ -249,45 +249,92 @@ def run_analysis(config: dict):
         ai_agent = AnalysisAgent(config['ai_model'])
         
         # Extract domain from property URL
+        # Remove protocol, www, and trailing slash
         domain = property_url.replace('sc-domain:', '').replace(
             'https://', ''
-        ).replace('http://', '').rstrip('/')
+        ).replace('http://', '').replace('www.', '').rstrip('/')
         
         # Step 1: Collect GSC data
         progress.progress(10, text="Collecting GSC data...")
         
         days = settings.date_windows[config['period']]['days']
+        
+        # Get UNFILTERED data for accurate totals
+        gsc_data_unfiltered = gsc_collector.get_comprehensive_data(
+            property_url,
+            days=days,
+            min_impressions=0  # No filter for totals
+        )
+        
+        # Get FILTERED data for analysis
         gsc_data = gsc_collector.get_comprehensive_data(
             property_url,
             days=days,
             min_impressions=config['min_impressions']
         )
         
-        # Get YoY data if requested
+        # Store unfiltered totals separately
+        unfiltered_queries = gsc_data_unfiltered.get('queries', pd.DataFrame())
+        if not unfiltered_queries.empty:
+            gsc_data['total_metrics'] = {
+                'clicks': int(unfiltered_queries['clicks'].sum()),
+                'impressions': int(unfiltered_queries['impressions'].sum()),
+                'ctr': float(unfiltered_queries['ctr'].mean()),
+                'position': float(unfiltered_queries['position'].mean())
+            }
+        else:
+            gsc_data['total_metrics'] = {}
+        
+        # Get YoY data if requested (with lower filter threshold)
         yoy_data = {}
         if config['include_yoy']:
             progress.progress(25, text="Collecting YoY comparison data...")
             yoy_start, yoy_end = gsc_collector.get_yoy_date_range(days)
+            # Use lower filter for YoY to capture more decay
+            yoy_min_imp = max(10, config['min_impressions'] // 2)
             yoy_data = {
                 'queries': gsc_collector.get_query_data(
-                    property_url, yoy_start, yoy_end,
-                    config['min_impressions']
+                    property_url, yoy_start, yoy_end, yoy_min_imp
                 ),
                 'pages': gsc_collector.get_page_data(
-                    property_url, yoy_start, yoy_end,
-                    config['min_impressions']
+                    property_url, yoy_start, yoy_end, yoy_min_imp
                 )
             }
         
         st.session_state.gsc_data = gsc_data
         
         # Step 2: Collect DataForSEO data
-        progress.progress(35, text="Fetching DataForSEO data...")
+        progress.progress(35, text=f"Fetching DataForSEO data for {domain}...")
         
-        dataforseo_data = dfs_client.get_comprehensive_domain_data(
-            domain=domain,
-            max_keywords=2000
-        )
+        try:
+            dataforseo_data = dfs_client.get_comprehensive_domain_data(
+                domain=domain,
+                max_keywords=2000
+            )
+            
+            # Log DataForSEO results for debugging
+            ranked_kw = dataforseo_data.get(
+                'ranked_keywords', pd.DataFrame()
+            )
+            overview = dataforseo_data.get('overview', {})
+            if isinstance(ranked_kw, pd.DataFrame) and not ranked_kw.empty:
+                kw_count = len(ranked_kw)
+                logger.info(f"DataForSEO: Found {kw_count} keywords")
+            else:
+                logger.warning(f"DataForSEO: No keywords for {domain}")
+            
+            if overview:
+                logger.info(f"DataForSEO overview: {overview}")
+            else:
+                logger.warning(f"DataForSEO: No overview for {domain}")
+                
+        except Exception as e:
+            logger.error(f"DataForSEO error: {str(e)}")
+            dataforseo_data = {
+                'domain': domain,
+                'overview': {},
+                'ranked_keywords': pd.DataFrame()
+            }
         
         # Get competitors
         if config['auto_discover_competitors']:
@@ -304,8 +351,20 @@ def run_analysis(config: dict):
                 domain, top_competitor
             )
             dataforseo_data['keyword_gaps'] = keyword_gaps
-        
-        st.session_state.dataforseo_data = dataforseo_data
+            
+            # Store DataForSEO status for UI display
+            rk = dataforseo_data.get('ranked_keywords', pd.DataFrame())
+            rk_count = len(rk) if isinstance(rk, pd.DataFrame) else 0
+            comp_count = len(competitors) if not competitors.empty else 0
+            
+            dataforseo_data['status'] = {
+                'ranked_keywords_count': rk_count,
+                'competitors_count': comp_count,
+                'overview_available': bool(dataforseo_data.get('overview')),
+                'domain_queried': domain
+            }
+            
+            st.session_state.dataforseo_data = dataforseo_data
         
         # Step 3: Normalize and join data
         progress.progress(50, text="Processing and normalizing data...")
@@ -373,24 +432,34 @@ def run_analysis(config: dict):
         
         st.session_state.brand_metrics = brand_metrics
         
+        # Store min_impressions for UI display
+        st.session_state.min_impressions = config['min_impressions']
+        
         # Step 7: AI Analysis
         progress.progress(90, text="Generating AI insights...")
         
-        analysis_data = {
-            'domain': domain,
-            'period': config['period'],
-            'overview_metrics': {
+        # Use ACTUAL GSC totals for overview
+        total_metrics = gsc_data.get('total_metrics', {})
+        if not total_metrics:
+            total_metrics = {
                 'clicks': int(normalized_queries['clicks'].sum()),
                 'impressions': int(normalized_queries['impressions'].sum()),
                 'ctr': float(normalized_queries['ctr'].mean()),
                 'position': float(normalized_queries['position'].mean())
-            },
+            }
+        
+        analysis_data = {
+            'domain': domain,
+            'period': settings.date_windows[config['period']]['label'],
+            'overview_metrics': total_metrics,
             'quick_wins': opportunities.get('quick_wins', pd.DataFrame()),
             'decaying_keywords': decaying_keywords,
             'decaying_pages': decaying_pages,
             'decay_summary': decay_summary,
             'competitors': competitors,
-            'keyword_gaps': dataforseo_data.get('keyword_gaps', pd.DataFrame()),
+            'keyword_gaps': dataforseo_data.get(
+                'keyword_gaps', pd.DataFrame()
+            ),
             'brand_metrics': brand_metrics,
             'non_brand_opportunities': non_brand_opps,
             'page_data': gsc_data.get('pages', pd.DataFrame()),
@@ -399,7 +468,7 @@ def run_analysis(config: dict):
                 gsc_data.get('pages', pd.DataFrame()),
                 gsc_data.get('query_page', pd.DataFrame())
             ),
-            'serp_features': 'SERP feature analysis not available'
+            'serp_features': 'SERP feature analysis pending'
         }
         
         ai_analysis = ai_agent.run_full_analysis(analysis_data)
@@ -466,11 +535,18 @@ def render_overview_tab():
     st.header("Overview")
     
     gsc_data = st.session_state.gsc_data
+    dataforseo_data = st.session_state.dataforseo_data
     brand_metrics = st.session_state.brand_metrics
     opportunities = st.session_state.opportunities
     
-    # Key metrics
-    if 'queries' in gsc_data:
+    # Key metrics - use TOTAL metrics (unfiltered)
+    if 'total_metrics' in gsc_data and gsc_data['total_metrics']:
+        MetricCards.overview_metrics(gsc_data['total_metrics'])
+        st.caption(
+            f"*Based on ALL queries. Analysis below uses queries with "
+            f"≥{st.session_state.get('min_impressions', 50)} impressions.*"
+        )
+    elif 'queries' in gsc_data:
         queries_df = gsc_data['queries']
         overview = {
             'clicks': queries_df['clicks'].sum(),
@@ -479,6 +555,66 @@ def render_overview_tab():
             'position': queries_df['position'].mean()
         }
         MetricCards.overview_metrics(overview)
+    
+    st.divider()
+    
+    # DataForSEO Status & Metrics
+    st.subheader("📊 DataForSEO Intelligence")
+    dfs_status = dataforseo_data.get('status', {})
+    dfs_overview = dataforseo_data.get('overview', {})
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "Ranked Keywords",
+            f"{dfs_status.get('ranked_keywords_count', 0):,}",
+            help="Keywords found ranking in DataForSEO database"
+        )
+    
+    with col2:
+        st.metric(
+            "Est. Organic Traffic",
+            f"{int(dfs_overview.get('organic_etv', 0)):,}",
+            help="Estimated monthly organic traffic value"
+        )
+    
+    with col3:
+        st.metric(
+            "Competitors Found",
+            f"{dfs_status.get('competitors_count', 0)}",
+            help="Competing domains discovered"
+        )
+    
+    with col4:
+        st.metric(
+            "Domain Queried",
+            dfs_status.get('domain_queried', 'N/A'),
+            help="Domain sent to DataForSEO API"
+        )
+    
+    # Show ranked keywords sample if available
+    ranked_kw = dataforseo_data.get('ranked_keywords', pd.DataFrame())
+    if isinstance(ranked_kw, pd.DataFrame) and not ranked_kw.empty:
+        with st.expander("📋 Top Ranked Keywords (DataForSEO)"):
+            display_cols = [
+                'keyword', 'position', 'search_volume',
+                'cpc', 'traffic', 'url'
+            ]
+            available_cols = [
+                c for c in display_cols if c in ranked_kw.columns
+            ]
+            if available_cols:
+                st.dataframe(
+                    ranked_kw[available_cols].head(20),
+                    use_container_width=True,
+                    hide_index=True
+                )
+    else:
+        st.info(
+            "ℹ️ No DataForSEO ranked keywords available. "
+            "API may have failed or domain has no indexed keywords."
+        )
     
     st.divider()
     

@@ -371,45 +371,50 @@ class OpportunityScorer:
         
         df = scored_df.copy()
         
-        # Define thresholds
-        high_threshold = 70
-        medium_threshold = 50
+        # Define thresholds - LOWERED for better detection
+        high_threshold = 40  # Was 70
+        medium_threshold = 25  # Was 50
         
-        # Quick wins: high score + position 5-15
+        # Quick wins: decent score + position 3-20 (expanded range)
         pos_col = 'gsc_position' if 'gsc_position' in df.columns else 'position'
         quick_wins = df[
-            (df['opportunity_score'] >= high_threshold) &
-            (df[pos_col] >= 5) &
-            (df[pos_col] <= 15)
+            (df['opportunity_score'] >= medium_threshold) &
+            (df[pos_col] >= 3) &
+            (df[pos_col] <= 20)
         ]
         
-        # CTR opportunities: high ctr_gap + good position
+        # CTR opportunities: any ctr_gap + decent position
         ctr_opps = df[
-            (df['ctr_gap_score'] >= 0.3) &
-            (df[pos_col] <= 10) &
-            (df['opportunity_score'] >= medium_threshold)
+            (df['ctr_gap_score'] >= 0.15) &
+            (df[pos_col] <= 15) &
+            (df['opportunity_score'] >= 20)
         ]
         
-        # Scaling opportunities: high volume + position 2-5
-        volume_col = 'dfs_search_volume' if 'dfs_search_volume' in df.columns else 'search_volume'  # noqa: E501
+        # Scaling opportunities: higher volume + position 2-10
+        vol_col = 'dfs_search_volume'
+        if vol_col not in df.columns:
+            vol_col = 'search_volume'
+        if vol_col not in df.columns:
+            vol_col = 'impressions'
+        
+        vol_threshold = df[vol_col].quantile(0.5) if vol_col in df.columns else 0
         scaling = df[
-            (df[volume_col] >= df[volume_col].quantile(0.75)) &
+            (df.get(vol_col, pd.Series([0])) >= vol_threshold) &
             (df[pos_col] >= 2) &
-            (df[pos_col] <= 5)
+            (df[pos_col] <= 10)
         ]
         
-        # Declining: negative trend + was getting traffic
+        # Declining: any negative trend
         clicks_col = 'gsc_clicks' if 'gsc_clicks' in df.columns else 'clicks'
         declining = df[
-            (df['trend_score'] < -0.2) &
-            (df[clicks_col] >= 10)
+            (df['trend_score'] < -0.1) &
+            (df[clicks_col] >= 1)
         ]
         
-        # New opportunities: high score but low current clicks
+        # New opportunities: decent score but low current clicks
         new_opps = df[
-            (df['opportunity_score'] >= high_threshold) &
-            (df[clicks_col] < 10) &
-            (df[volume_col] >= 100)
+            (df['opportunity_score'] >= medium_threshold) &
+            (df[clicks_col] < 5)
         ]
         
         return {
