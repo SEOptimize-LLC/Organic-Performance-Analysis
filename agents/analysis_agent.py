@@ -28,15 +28,20 @@ class AnalysisAgent:
         Args:
             model: OpenRouter model identifier
         """
-        self.api_key = api_config.get_openrouter_key()
-        self.base_url = api_config.OPENROUTER_BASE_URL
-        self.model = model or settings.available_models[0]
+        # Get API key from config
+        if api_config.openrouter_api_key:
+            self.api_key = api_config.openrouter_api_key.get_secret_value()
+        else:
+            raise ValueError("OpenRouter API key not configured")
+        
+        self.base_url = api_config.openrouter_base_url
+        self.model = model or settings.available_llm_models[0]
         self.system_prompt = AnalysisPrompts.get_system_prompt()
         
         self.headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://organic-performance-analyzer.streamlit.app',
+            'HTTP-Referer': 'https://organic-performance-analysis.streamlit.app',
             'X-Title': 'Organic Performance Analyzer'
         }
     
@@ -55,7 +60,7 @@ class AnalysisAgent:
     
     def get_available_models(self) -> List[str]:
         """Get list of available models."""
-        return settings.available_models
+        return settings.available_llm_models
     
     @rate_limiter.limit_openrouter
     def _call_llm(
