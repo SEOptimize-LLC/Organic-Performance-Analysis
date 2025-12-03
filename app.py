@@ -54,11 +54,31 @@ def init_session_state():
 
 
 def render_sidebar():
-    """Render sidebar with configuration options."""
-    st.sidebar.title("⚙️ Analysis Configuration")
+    """Render sidebar with API status and GSC connection."""
+    st.sidebar.title("🔌 Connection Status")
+    
+    # API Configuration Status (moved to sidebar)
+    st.sidebar.subheader("API Configuration")
+    
+    if api_config.has_gsc_credentials():
+        st.sidebar.success("✅ GSC configured")
+    else:
+        st.sidebar.warning("⚠️ GSC missing")
+    
+    if api_config.has_dataforseo_credentials():
+        st.sidebar.success("✅ DataForSEO configured")
+    else:
+        st.sidebar.warning("⚠️ DataForSEO missing")
+    
+    if api_config.has_openrouter_credentials():
+        st.sidebar.success("✅ OpenRouter configured")
+    else:
+        st.sidebar.warning("⚠️ OpenRouter missing")
+    
+    st.sidebar.divider()
     
     # GSC Authentication
-    st.sidebar.header("1. Google Search Console")
+    st.sidebar.subheader("Google Search Console")
     
     auth_service = AuthService()
     
@@ -68,12 +88,15 @@ def render_sidebar():
                 auth_url = auth_service.get_auth_url()
                 st.sidebar.markdown(f"[Click here to authorize]({auth_url})")
             except ValueError as e:
-                st.sidebar.error(f"Configuration error: {str(e)}")
+                st.sidebar.error(f"Config error: {str(e)}")
         
         # Check for OAuth callback in query params
-        query_params = dict(st.query_params) if hasattr(st, 'query_params') else {}
-        if 'code' in query_params and 'state' in query_params:
-            success, error = auth_service.handle_callback(query_params)
+        try:
+            qp = dict(st.query_params) if hasattr(st, 'query_params') else {}
+        except Exception:
+            qp = {}
+        if 'code' in qp and 'state' in qp:
+            success, error = auth_service.handle_callback(qp)
             if success:
                 st.session_state.authenticated = True
                 st.rerun()
@@ -95,73 +118,85 @@ def render_sidebar():
             st.session_state.selected_property = selected
         else:
             st.sidebar.warning("No properties found")
+        
+        if st.sidebar.button("🔓 Disconnect", use_container_width=True):
+            auth_service.revoke_credentials()
+            st.session_state.authenticated = False
+            st.session_state.selected_property = None
+            st.rerun()
     
-    st.sidebar.divider()
+    return auth_service
+
+
+def render_config_panel():
+    """Render configuration panel in main area."""
+    st.subheader("⚙️ Analysis Configuration")
     
-    # Analysis Parameters
-    st.sidebar.header("2. Analysis Parameters")
+    col1, col2 = st.columns(2)
     
-    analysis_period = st.sidebar.selectbox(
-        "Analysis Period:",
-        options=list(settings.date_windows.keys()),
-        format_func=lambda x: settings.date_windows[x]['label'],
-        index=1  # Default to 90 days
-    )
-    
-    min_impressions = st.sidebar.slider(
-        "Min Impressions Filter:",
-        min_value=0,
-        max_value=500,
-        value=settings.min_impressions_default,
-        step=10
-    )
-    
-    include_yoy = st.sidebar.checkbox(
-        "Include Year-over-Year Comparison",
-        value=True
-    )
-    
-    st.sidebar.divider()
-    
-    # Brand Terms
-    st.sidebar.header("3. Brand Configuration")
-    
-    brand_terms_input = st.sidebar.text_area(
-        "Brand Terms (one per line):",
-        help="Enter brand terms to exclude from non-brand analysis"
-    )
-    brand_terms = [t.strip() for t in brand_terms_input.split('\n') if t.strip()]
-    
-    st.sidebar.divider()
-    
-    # Competitors (optional)
-    st.sidebar.header("4. Competitors (Optional)")
-    
-    auto_discover = st.sidebar.checkbox(
-        "Auto-discover competitors",
-        value=True
-    )
-    
-    manual_competitors = []
-    if not auto_discover:
-        competitors_input = st.sidebar.text_area(
-            "Manual competitors (one per line):"
+    with col1:
+        # Analysis Parameters
+        st.markdown("**Analysis Parameters**")
+        
+        analysis_period = st.selectbox(
+            "Analysis Period:",
+            options=list(settings.date_windows.keys()),
+            format_func=lambda x: settings.date_windows[x]['label'],
+            index=1
         )
-        manual_competitors = [
-            c.strip() for c in competitors_input.split('\n') if c.strip()
+        
+        min_impressions = st.slider(
+            "Min Impressions Filter:",
+            min_value=0,
+            max_value=500,
+            value=settings.min_impressions_default,
+            step=10
+        )
+        
+        include_yoy = st.checkbox(
+            "Include Year-over-Year Comparison",
+            value=True
+        )
+        
+        # AI Model Selection
+        st.markdown("**AI Model**")
+        selected_model = st.selectbox(
+            "Select LLM Model:",
+            options=settings.available_llm_models,
+            index=0,
+            help="Choose the AI model for analysis generation"
+        )
+    
+    with col2:
+        # Brand Terms
+        st.markdown("**Brand Configuration**")
+        
+        brand_terms_input = st.text_area(
+            "Brand Terms (one per line):",
+            help="Enter brand terms to exclude from non-brand analysis",
+            height=100
+        )
+        brand_terms = [
+            t.strip() for t in brand_terms_input.split('\n') if t.strip()
         ]
-    
-    st.sidebar.divider()
-    
-    # AI Model Selection
-    st.sidebar.header("5. AI Analysis Model")
-    
-    selected_model = st.sidebar.selectbox(
-        "Select LLM Model:",
-        options=settings.available_llm_models,
-        index=0,
-        help="Choose the AI model for analysis generation"
-    )
+        
+        # Competitors
+        st.markdown("**Competitors**")
+        
+        auto_discover = st.checkbox(
+            "Auto-discover competitors",
+            value=True
+        )
+        
+        manual_competitors = []
+        if not auto_discover:
+            competitors_input = st.text_area(
+                "Manual competitors (one per line):",
+                height=100
+            )
+            manual_competitors = [
+                c.strip() for c in competitors_input.split('\n') if c.strip()
+            ]
     
     return {
         'period': analysis_period,
@@ -673,15 +708,20 @@ def main():
     # Header
     st.title("📊 Organic Performance Analyzer")
     st.markdown("""
-    Advanced SEO analysis tool combining Google Search Console data with 
+    Advanced SEO analysis tool combining Google Search Console data with
     DataForSEO insights and AI-powered recommendations.
     """)
     
-    # Sidebar configuration
-    config = render_sidebar()
+    # Sidebar - API status and GSC connection
+    render_sidebar()
     
     # Main content area
     if st.session_state.authenticated and st.session_state.selected_property:
+        # Configuration panel in main area
+        config = render_config_panel()
+        
+        st.divider()
+        
         # Run Analysis button
         if st.button(
             "🚀 Run Analysis",
@@ -696,50 +736,10 @@ def main():
             render_results()
     
     elif not st.session_state.authenticated:
-        st.info("👈 Connect to Google Search Console to get started")
-        
-        # Show API configuration status
-        st.subheader("API Configuration Status")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            if api_config.has_gsc_credentials():
-                st.success("✅ GSC credentials configured")
-            else:
-                st.warning("⚠️ GSC credentials missing")
-        
-        with col2:
-            if api_config.has_dataforseo_credentials():
-                st.success("✅ DataForSEO configured")
-            else:
-                st.warning("⚠️ DataForSEO credentials missing")
-        
-        with col3:
-            if api_config.has_openrouter_credentials():
-                st.success("✅ OpenRouter configured")
-            else:
-                st.warning("⚠️ OpenRouter API key missing")
-        
-        st.markdown("""
-        ### Setup Instructions
-        
-        Add the following to your Streamlit secrets (`.streamlit/secrets.toml`):
-        
-        ```toml
-        [gsc]
-        client_id = "your-client-id"
-        client_secret = "your-client-secret"
-        redirect_uri = "your-redirect-uri"
-        
-        [dataforseo]
-        login = "your-login"
-        password = "your-password"
-        
-        [openrouter]
-        api_key = "your-api-key"
-        ```
-        """)
+        st.info("👈 Connect to Google Search Console in the sidebar")
+    
+    elif not st.session_state.selected_property:
+        st.info("👈 Select a GSC property in the sidebar")
 
 
 if __name__ == "__main__":
