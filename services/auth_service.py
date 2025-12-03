@@ -83,8 +83,13 @@ class AuthService:
         
         return True
     
-    def get_auth_url(self) -> str:
-        """Generate OAuth2 authorization URL with proper state management"""
+    def get_auth_url(self, login_hint: str = None) -> str:
+        """
+        Generate OAuth2 authorization URL with proper state management.
+        
+        Args:
+            login_hint: Optional email to pre-select in Google account picker
+        """
         if not api_config.has_gsc_credentials():
             raise ValueError("Google OAuth credentials not configured")
         
@@ -95,22 +100,34 @@ class AuthService:
             # Generate new state token
             state = self.generate_state_token()
             
+            # Get redirect URI and log it for debugging
+            redirect_uri = api_config.google_redirect_uri
+            logger.info(f"Using redirect_uri: '{redirect_uri}'")
+            
             # Create OAuth flow
             flow = Flow.from_client_config(
                 api_config.get_google_client_config(),
                 scopes=api_config.oauth2_scopes,
-                redirect_uri=api_config.google_redirect_uri,
+                redirect_uri=redirect_uri,
                 state=state
             )
             
-            auth_url, _ = flow.authorization_url(
-                access_type='offline',
-                include_granted_scopes='true',
-                prompt='consent'
-            )
+            # Build authorization URL with optional login hint
+            auth_params = {
+                'access_type': 'offline',
+                'include_granted_scopes': 'true',
+                'prompt': 'consent'
+            }
+            
+            # Add login_hint if provided to pre-select account
+            if login_hint:
+                auth_params['login_hint'] = login_hint
+                logger.info(f"Using login_hint: {login_hint}")
+            
+            auth_url, _ = flow.authorization_url(**auth_params)
             
             logger.info(
-                f"Generated auth URL with redirect: {api_config.google_redirect_uri}"
+                f"Generated auth URL with redirect: {redirect_uri}"
             )
             return auth_url
             

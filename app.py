@@ -83,9 +83,27 @@ def render_sidebar():
     auth_service = AuthService()
     
     if not st.session_state.authenticated:
+        # Show redirect URI for debugging
+        redirect_uri = api_config.google_redirect_uri
+        with st.sidebar.expander("🔧 Debug: OAuth Config"):
+            st.code(f"Redirect URI:\n{redirect_uri}", language=None)
+            st.caption(
+                "This MUST exactly match what's in Google Cloud Console "
+                "→ Credentials → OAuth 2.0 Client → Authorized redirect URIs"
+            )
+        
+        # Email hint for account selection
+        login_email = st.sidebar.text_input(
+            "GSC Account Email:",
+            value="team@seoptimizellc.com",
+            help="Pre-select this Google account during login"
+        )
+        
         if st.sidebar.button("🔐 Connect to GSC", use_container_width=True):
             try:
-                auth_url = auth_service.get_auth_url()
+                auth_url = auth_service.get_auth_url(
+                    login_hint=login_email if login_email else None
+                )
                 st.sidebar.markdown(f"[Click here to authorize]({auth_url})")
             except ValueError as e:
                 st.sidebar.error(f"Config error: {str(e)}")
