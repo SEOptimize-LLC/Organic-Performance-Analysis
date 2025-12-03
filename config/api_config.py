@@ -13,18 +13,42 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def get_streamlit_secret(key: str, default: str = "") -> str:
+def get_streamlit_secret(
+    section: str,
+    key: str,
+    default: str = "",
+    flat_key: str = None
+) -> str:
     """
     Get secret from Streamlit secrets or environment variable.
+    Supports both nested (st.secrets["section"]["key"]) and flat formats.
     Streamlit secrets take priority over environment variables.
+    
+    Args:
+        section: Section name in secrets (e.g., "gsc", "dataforseo")
+        key: Key name within section
+        default: Default value if not found
+        flat_key: Optional flat environment variable name
     """
     try:
         import streamlit as st
-        if hasattr(st, 'secrets') and key in st.secrets:
-            return st.secrets[key]
+        if hasattr(st, 'secrets'):
+            # Try nested format first: st.secrets["section"]["key"]
+            if section in st.secrets:
+                section_data = st.secrets[section]
+                if isinstance(section_data, dict) and key in section_data:
+                    return section_data[key]
+                elif hasattr(section_data, key):
+                    return getattr(section_data, key)
+            # Try flat format: st.secrets["FLAT_KEY"]
+            if flat_key and flat_key in st.secrets:
+                return st.secrets[flat_key]
     except Exception:
         pass
-    return os.getenv(key, default)
+    
+    # Fall back to environment variable
+    env_key = flat_key if flat_key else f"{section.upper()}_{key.upper()}"
+    return os.getenv(env_key, default)
 
 
 class APIConfig(BaseSettings):
@@ -80,42 +104,49 @@ class APIConfig(BaseSettings):
     
     def _load_credentials(self):
         """Load credentials from Streamlit secrets or environment"""
-        # Google credentials
+        # Google credentials - supports [gsc] section or flat keys
         self.google_client_id = get_streamlit_secret(
-            "GOOGLE_CLIENT_ID",
-            os.getenv("GOOGLE_CLIENT_ID", "")
+            section="gsc",
+            key="client_id",
+            flat_key="GOOGLE_CLIENT_ID"
         )
         
         google_secret = get_streamlit_secret(
-            "GOOGLE_CLIENT_SECRET",
-            os.getenv("GOOGLE_CLIENT_SECRET", "")
+            section="gsc",
+            key="client_secret",
+            flat_key="GOOGLE_CLIENT_SECRET"
         )
         if google_secret:
             self.google_client_secret = SecretStr(google_secret)
         
         # Google Redirect URI (important for Streamlit Cloud)
         self.google_redirect_uri = get_streamlit_secret(
-            "GOOGLE_REDIRECT_URI",
-            os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
+            section="gsc",
+            key="redirect_uri",
+            default="http://localhost:8501",
+            flat_key="GOOGLE_REDIRECT_URI"
         )
         
-        # DataForSEO credentials
+        # DataForSEO credentials - supports [dataforseo] section
         self.dataforseo_login = get_streamlit_secret(
-            "DATAFORSEO_LOGIN",
-            os.getenv("DATAFORSEO_LOGIN", "")
+            section="dataforseo",
+            key="login",
+            flat_key="DATAFORSEO_LOGIN"
         )
         
         dataforseo_pass = get_streamlit_secret(
-            "DATAFORSEO_PASSWORD",
-            os.getenv("DATAFORSEO_PASSWORD", "")
+            section="dataforseo",
+            key="password",
+            flat_key="DATAFORSEO_PASSWORD"
         )
         if dataforseo_pass:
             self.dataforseo_password = SecretStr(dataforseo_pass)
         
-        # OpenRouter API Key
+        # OpenRouter API Key - supports [openrouter] section
         openrouter_key = get_streamlit_secret(
-            "OPENROUTER_API_KEY",
-            os.getenv("OPENROUTER_API_KEY", "")
+            section="openrouter",
+            key="api_key",
+            flat_key="OPENROUTER_API_KEY"
         )
         if openrouter_key:
             self.openrouter_api_key = SecretStr(openrouter_key)

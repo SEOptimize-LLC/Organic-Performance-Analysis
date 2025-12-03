@@ -64,19 +64,21 @@ def render_sidebar():
     
     if not st.session_state.authenticated:
         if st.sidebar.button("🔐 Connect to GSC", use_container_width=True):
-            auth_url = auth_service.get_authorization_url()
-            st.sidebar.markdown(f"[Click here to authorize]({auth_url})")
+            try:
+                auth_url = auth_service.get_auth_url()
+                st.sidebar.markdown(f"[Click here to authorize]({auth_url})")
+            except ValueError as e:
+                st.sidebar.error(f"Configuration error: {str(e)}")
         
-        # Handle OAuth callback
-        auth_code = st.sidebar.text_input(
-            "Paste authorization code:",
-            help="After authorizing, paste the code here"
-        )
-        if auth_code:
-            if auth_service.exchange_code(auth_code):
+        # Check for OAuth callback in query params
+        query_params = dict(st.query_params) if hasattr(st, 'query_params') else {}
+        if 'code' in query_params and 'state' in query_params:
+            success, error = auth_service.handle_callback(query_params)
+            if success:
                 st.session_state.authenticated = True
-                st.session_state.gsc_service = auth_service.get_gsc_service()
                 st.rerun()
+            else:
+                st.sidebar.error(f"Auth failed: {error}")
     else:
         st.sidebar.success("✅ Connected to GSC")
         
