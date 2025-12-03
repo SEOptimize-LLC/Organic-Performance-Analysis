@@ -38,10 +38,11 @@ class OpportunityScorer:
         Returns:
             Expected CTR value
         """
-        if position <= 0:
-            return 0
+        # Handle NaN, None, or invalid values
+        if position is None or pd.isna(position) or position <= 0:
+            return 0.01  # Default CTR for unknown position
         
-        pos_int = int(min(position, 20))
+        pos_int = int(min(float(position), 20))
         return self.ctr_benchmarks.get(pos_int, 0.01)
     
     def calculate_ctr_gap(
@@ -78,8 +79,11 @@ class OpportunityScorer:
         Returns:
             Position potential score (0-1)
         """
-        if position <= 0:
+        # Handle NaN, None, or invalid values
+        if position is None or pd.isna(position) or position <= 0:
             return 0
+        
+        position = float(position)
         
         # Best opportunity: positions 4-15 (striking distance)
         # Can improve significantly with optimization
@@ -111,8 +115,11 @@ class OpportunityScorer:
         Returns:
             Volume score (0-1)
         """
-        if search_volume <= 0:
+        # Handle NaN or invalid values
+        if search_volume is None or pd.isna(search_volume) or search_volume <= 0:
             return 0
+        
+        search_volume = float(search_volume)
         
         if max_volume is None:
             max_volume = 100000  # Default max
@@ -140,11 +147,20 @@ class OpportunityScorer:
         Returns:
             Commercial score (0-1)
         """
+        # Handle NaN values
+        if cpc is None or pd.isna(cpc):
+            cpc = 0.0
+        if competition is None or pd.isna(competition):
+            competition = 0.0
+        
+        cpc = float(cpc)
+        competition = float(competition)
+        
         if max_cpc is None:
             max_cpc = 50.0  # Default max CPC
         
         # Normalize CPC
-        cpc_score = min(1, cpc / max_cpc)
+        cpc_score = min(1, cpc / max_cpc) if max_cpc > 0 else 0
         
         # Competition as modifier (high competition = high value)
         comp_modifier = 0.5 + (competition * 0.5)
@@ -170,6 +186,21 @@ class OpportunityScorer:
         Returns:
             Trend score (-1 to 1, negative = declining)
         """
+        # Handle NaN values
+        if current_clicks is None or pd.isna(current_clicks):
+            current_clicks = 0
+        if previous_clicks is None or pd.isna(previous_clicks):
+            previous_clicks = 0
+        if current_position is None or pd.isna(current_position):
+            current_position = 0
+        if previous_position is None or pd.isna(previous_position):
+            previous_position = 0
+        
+        current_clicks = int(current_clicks)
+        previous_clicks = int(previous_clicks)
+        current_position = float(current_position)
+        previous_position = float(previous_position)
+        
         # Click trend
         if previous_clicks > 0:
             click_change = (current_clicks - previous_clicks) / previous_clicks
@@ -208,6 +239,22 @@ class OpportunityScorer:
         Returns:
             Dict with component scores and total
         """
+        # Sanitize all input values - handle NaN
+        def safe_val(val, default=0):
+            if val is None or pd.isna(val):
+                return default
+            return val
+        
+        search_volume = safe_val(search_volume, 0)
+        position = safe_val(position, 0)
+        ctr = safe_val(ctr, 0)
+        cpc = safe_val(cpc, 0)
+        competition = safe_val(competition, 0)
+        current_clicks = safe_val(current_clicks, 0)
+        previous_clicks = safe_val(previous_clicks, 0)
+        current_position = safe_val(current_position, 0)
+        previous_position = safe_val(previous_position, 0)
+        
         # Calculate component scores
         volume_score = self.calculate_volume_score(search_volume, max_volume)
         position_score = self.calculate_position_potential(position)
