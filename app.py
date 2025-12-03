@@ -104,27 +104,9 @@ def render_sidebar():
                     else:
                         st.error(f"Auth failed: {error}")
         
-        # Show redirect URI for debugging
-        redirect_uri = api_config.google_redirect_uri
-        with st.sidebar.expander("🔧 Debug: OAuth Config"):
-            st.code(f"Redirect URI:\n{redirect_uri}", language=None)
-            st.caption(
-                "Using 'installed' app type. "
-                "This must match Google Cloud Console redirect URIs."
-            )
-        
-        # Email hint for account selection
-        login_email = st.sidebar.text_input(
-            "GSC Account Email:",
-            value="team@seoptimizellc.com",
-            help="Pre-select this Google account during login"
-        )
-        
         # Generate auth URL and show link button for direct navigation
         try:
-            auth_url = auth_service.get_auth_url(
-                login_hint=login_email if login_email else None
-            )
+            auth_url = auth_service.get_auth_url()
             # Use link_button for direct single-click authentication
             st.sidebar.link_button(
                 "🔐 Sign in with Google",
@@ -132,6 +114,10 @@ def render_sidebar():
                 type="primary",
                 use_container_width=True
             )
+            
+            # Debug expander (collapsed by default)
+            with st.sidebar.expander("🔧 Debug Info", expanded=False):
+                st.code(api_config.google_redirect_uri, language=None)
         except ValueError as e:
             st.sidebar.error(f"Config error: {str(e)}")
     else:

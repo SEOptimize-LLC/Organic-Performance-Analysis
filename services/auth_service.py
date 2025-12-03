@@ -143,19 +143,18 @@ class AuthService:
             raise
     
     def handle_callback(
-        self, 
+        self,
         query_params: Dict[str, Any]
     ) -> Tuple[bool, Optional[str]]:
-        """Handle OAuth2 callback with comprehensive error handling"""
+        """
+        Handle OAuth2 callback - simplified flow without strict state validation.
+        Streamlit Cloud can lose session state on redirect, so we use a simpler approach.
+        """
         try:
             # Extract parameters - handle both list and string values
             code = query_params.get('code')
             if isinstance(code, list):
                 code = code[0] if code else None
-            
-            state = query_params.get('state')
-            if isinstance(state, list):
-                state = state[0] if state else None
             
             error = query_params.get('error')
             if isinstance(error, list):
@@ -172,38 +171,29 @@ class AuthService:
             if not code:
                 return False, "No authorization code received"
             
-            if not state:
-                return False, "No state parameter received"
-            
-            # Verify state to prevent CSRF
-            if not self.verify_state_token(state):
-                return False, "Invalid or expired state token. Please try again."
-            
-            # Check if code was already used
+            # Check if code was already used (simple protection)
             if code in st.session_state.auth_code_used:
-                return False, "Authorization code already used. Please start over."
+                # Already processed, just return success if authenticated
+                if st.session_state.authenticated:
+                    return True, None
+                return False, "Authorization code already processed."
             
             # Mark code as used immediately
             st.session_state.auth_code_used.add(code)
             
-            # Get flow from session or create new one
+            # Create fresh OAuth flow for token exchange
             client_config = api_config.get_google_client_config()
             config_key = "installed" if "installed" in client_config else "web"
             redirect_uri = client_config[config_key]["redirect_uris"][0]
             
-            # Check if we have flow in session
-            if hasattr(st.session_state, 'auth_flow') and st.session_state.auth_flow:
-                flow = st.session_state.auth_flow
-            else:
-                flow = Flow.from_client_config(
-                    client_config,
-                    scopes=api_config.oauth2_scopes,
-                    redirect_uri=redirect_uri,
-                    state=state
-                )
+            flow = Flow.from_client_config(
+                client_config,
+                scopes=api_config.oauth2_scopes,
+                redirect_uri=redirect_uri
+            )
             
             # Build authorization response URL
-            auth_response = f"{redirect_uri}?code={code}&state={state}"
+            auth_response = f"{redirect_uri}?code={code}"
             
             try:
                 # Exchange code for token
