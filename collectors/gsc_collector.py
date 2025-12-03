@@ -68,7 +68,7 @@ class GSCCollector:
         List all available GSC properties.
         
         Returns:
-            List of property URLs
+            List of property URLs (both URL and domain properties)
         """
         service = self._get_service()
         if not service:
@@ -78,7 +78,29 @@ class GSCCollector:
         try:
             response = service.sites().list().execute()
             properties = response.get('siteEntry', [])
-            return [prop['siteUrl'] for prop in properties]
+            
+            # Log the raw response for debugging
+            logger.info(f"GSC API returned {len(properties)} properties")
+            
+            # Extract all property URLs
+            property_urls = []
+            for prop in properties:
+                site_url = prop.get('siteUrl', '')
+                perm_level = prop.get('permissionLevel', 'unknown')
+                logger.info(f"  - {site_url} ({perm_level})")
+                property_urls.append(site_url)
+            
+            # Log counts by type
+            domain_count = sum(
+                1 for p in property_urls if p.startswith('sc-domain:')
+            )
+            url_count = len(property_urls) - domain_count
+            logger.info(
+                f"Property breakdown: {domain_count} domain, {url_count} URL"
+            )
+            
+            return property_urls
+            
         except HttpError as e:
             logger.error(f"Error listing properties: {str(e)}")
             return []

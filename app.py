@@ -128,14 +128,37 @@ def render_sidebar():
         properties = collector.list_properties()
         
         if properties:
+            # Separate domain and URL properties for better display
+            domain_props = [p for p in properties if p.startswith('sc-domain:')]
+            url_props = [p for p in properties if not p.startswith('sc-domain:')]
+            
+            # Show property counts for debugging
+            st.sidebar.caption(
+                f"Found {len(properties)} properties "
+                f"({len(domain_props)} domain, {len(url_props)} URL)"
+            )
+            
+            # Combine with domain properties first (usually preferred)
+            sorted_properties = domain_props + url_props
+            
             selected = st.sidebar.selectbox(
                 "Select Property:",
-                options=properties,
-                index=0
+                options=sorted_properties,
+                index=0,
+                help="Domain properties (sc-domain:) provide complete site data"
             )
             st.session_state.selected_property = selected
+            
+            # Show property type indicator
+            if selected.startswith('sc-domain:'):
+                st.sidebar.info("📊 Domain property selected")
+            else:
+                st.sidebar.info("🔗 URL property selected")
         else:
             st.sidebar.warning("No properties found")
+            st.sidebar.caption(
+                "Make sure your Google account has access to GSC properties"
+            )
         
         if st.sidebar.button("🔓 Disconnect", use_container_width=True):
             auth_service.revoke_credentials()
