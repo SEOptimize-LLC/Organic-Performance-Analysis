@@ -106,7 +106,9 @@ class DataForSEOClient:
             for task in tasks:
                 task_result = task.get('result', [])
                 if task_result:
-                    items_count = len(task_result[0].get('items', []))
+                    # Handle null items - get() returns None if key has null value
+                    items = task_result[0].get('items') or []
+                    items_count = len(items)
                     logger.info(f"DataForSEO returned {items_count} items")
             
             return result
@@ -211,7 +213,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 for item in items:
                     kw_data = item.get('keyword_data', {})
                     records.append({
@@ -373,7 +376,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 for item in items:
                     records.append({
                         'competitor_domain': item.get('domain', ''),
@@ -461,7 +465,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 for item in items:
                     kw_data = item.get('keyword_data', {})
                     kw_info = kw_data.get('keyword_info', {})
@@ -550,7 +555,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 for item in items:
                     kw_info = item.get('keyword_info', {})
                     serp_info = item.get('serp_info', {})
@@ -632,7 +638,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 for item in items:
                     kw_data = item.get('keyword_data', {})
                     kw_info = kw_data.get('keyword_info', {})
@@ -724,7 +731,8 @@ class DataForSEOClient:
                 r = result[0]
                 result_data['check_url'] = r.get('check_url', '')
                 
-                items = r.get('items', [])
+                # Handle null items
+                items = r.get('items') or []
                 for item in items:
                     item_type = item.get('type', '')
                     
@@ -867,7 +875,8 @@ class DataForSEOClient:
                 if not result:
                     continue
                 
-                items = result[0].get('items', [])
+                # Handle null items
+                items = result[0].get('items') or []
                 if items:
                     item = items[0]
                     return {
