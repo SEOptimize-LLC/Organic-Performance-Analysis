@@ -25,9 +25,13 @@ class DataForSEOClient:
     
     def __init__(self):
         """Initialize DataForSEO client with credentials."""
-        self.login = api_config.get_dataforseo_credentials()['login']
-        self.password = api_config.get_dataforseo_credentials()['password']
-        self.base_url = api_config.DATAFORSEO_BASE_URL
+        # Get auth tuple (login, password)
+        auth = api_config.get_dataforseo_auth()
+        if not auth:
+            raise ValueError("DataForSEO credentials not configured")
+        
+        self.login, self.password = auth
+        self.base_url = api_config.dataforseo_base_url
         
         # Encode credentials
         creds = f"{self.login}:{self.password}"
