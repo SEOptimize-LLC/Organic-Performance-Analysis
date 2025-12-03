@@ -702,20 +702,19 @@ def main():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if api_config.get_gsc_credentials():
+            if api_config.has_gsc_credentials():
                 st.success("✅ GSC credentials configured")
             else:
                 st.warning("⚠️ GSC credentials missing")
         
         with col2:
-            creds = api_config.get_dataforseo_credentials()
-            if creds['login'] and creds['password']:
+            if api_config.has_dataforseo_credentials():
                 st.success("✅ DataForSEO configured")
             else:
                 st.warning("⚠️ DataForSEO credentials missing")
         
         with col3:
-            if api_config.get_openrouter_key():
+            if api_config.has_openrouter_credentials():
                 st.success("✅ OpenRouter configured")
             else:
                 st.warning("⚠️ OpenRouter API key missing")
