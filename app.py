@@ -156,7 +156,7 @@ def render_sidebar():
     
     selected_model = st.sidebar.selectbox(
         "Select LLM Model:",
-        options=settings.available_models,
+        options=settings.available_llm_models,
         index=0,
         help="Choose the AI model for analysis generation"
     )
