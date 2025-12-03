@@ -129,8 +129,12 @@ def render_sidebar():
         
         if properties:
             # Separate domain and URL properties for better display
-            domain_props = [p for p in properties if p.startswith('sc-domain:')]
-            url_props = [p for p in properties if not p.startswith('sc-domain:')]
+            domain_props = [
+                p for p in properties if p.startswith('sc-domain:')
+            ]
+            url_props = [
+                p for p in properties if not p.startswith('sc-domain:')
+            ]
             
             # Show property counts for debugging
             st.sidebar.caption(
@@ -141,12 +145,29 @@ def render_sidebar():
             # Combine with domain properties first (usually preferred)
             sorted_properties = domain_props + url_props
             
+            # Calculate the correct default index
+            # Keep the user's previous selection if it exists and is valid
+            default_index = 0
+            if st.session_state.selected_property:
+                try:
+                    prev_idx = sorted_properties.index(
+                        st.session_state.selected_property
+                    )
+                    default_index = prev_idx
+                except ValueError:
+                    # Previous selection no longer in list
+                    default_index = 0
+            
+            # Use a unique key and on_change callback for proper state
             selected = st.sidebar.selectbox(
                 "Select Property:",
                 options=sorted_properties,
-                index=0,
-                help="Domain properties (sc-domain:) provide complete site data"
+                index=default_index,
+                key="property_selector",
+                help="Domain properties (sc-domain:) provide complete data"
             )
+            
+            # Update session state with current selection
             st.session_state.selected_property = selected
             
             # Show property type indicator
